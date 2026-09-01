@@ -55,7 +55,31 @@ public class AccessService
         var site = await _db.Sites.FirstOrDefaultAsync(s => s.Id == siteId, ct);
         if (site is null || !site.IsActive)
         {
-            return await PersistAsync(siteId, laneId, input, "DENY", "SITE_INACTIVE", ct: ct);
+            return await PersistAsync(siteId, laneId, input, "DENY", "SITE_INACTIVE", clientId: site?.ClientId, ct: ct);
+        }
+
+        // Subscription soft-check: suspended client cannot auto-open
+        var client = await _db.Clients.AsNoTracking().FirstOrDefaultAsync(c => c.Id == site.ClientId, ct);
+        if (client is not null && client.Status is "Suspended" or "Pending")
+        {
+            return await PersistAsync(siteId, laneId, input, "DENY", "CLIENT_SUSPENDED", clientId: site.ClientId, ct: ct);
+        }
+
+        var activeSub = await _db.Subscriptions.AsNoTracking()
+            .Where(s => s.ClientId == site.ClientId && (s.Status == "Active" || s.Status == "Grace" || s.Status == "Trial"))
+            .OrderByDescending(s => s.EndsAt)
+            .FirstOrDefaultAsync(ct);
+        if (activeSub is not null && activeSub.Status == "Grace" && activeSub.GraceEndsAt is not null && activeSub.GraceEndsAt < DateTime.UtcNow)
+        {
+            return await PersistAsync(siteId, laneId, input, "DENY", "SUBSCRIPTION_EXPIRED", clientId: site.ClientId, ct: ct);
+        }
+        if (activeSub is null)
+        {
+            // No subscription row yet (legacy tenants) — allow; new tenants get seeded/created with one.
+        }
+        else if (activeSub.Status == "Active" && activeSub.EndsAt < DateTime.UtcNow)
+        {
+            return await PersistAsync(siteId, laneId, input, "DENY", "SUBSCRIPTION_EXPIRED", clientId: site.ClientId, ct: ct);
         }
 
         var settings = SiteSettings.Parse(site.Settings);
@@ -64,22 +88,26 @@ public class AccessService
 
         if (string.IsNullOrEmpty(code))
         {
-            return await PersistAsync(siteId, laneId, input, "DENY", "EMPTY_CODE", ct: ct);
+            return await PersistAsync(siteId, laneId, input, "DENY", "EMPTY_CODE", clientId: site.ClientId, ct: ct);
         }
 
         if (type == "MANUAL")
         {
             if (!settings.AllowManualOpen)
             {
-                return await PersistAsync(siteId, laneId, input, "DENY", "MANUAL_OPEN_DISABLED", ct: ct);
+                return await PersistAsync(siteId, laneId, input, "DENY", "MANUAL_OPEN_DISABLED",
+                    clientId: site.ClientId, openMethod: OpenMethods.Guard, ct: ct);
             }
             return await PersistAsync(siteId, laneId, input, "ALLOW", "MANUAL_OPEN",
+                clientId: site.ClientId,
+                openMethod: OpenMethods.Guard,
+                eventType: AccessEventTypes.ManualOpen,
                 metaExtra: new Dictionary<string, object?> { ["note"] = code }, ct: ct);
         }
 
         if (settings.Features.TryGetValue(type.ToLowerInvariant(), out var enabled) && !enabled)
         {
-            return await PersistAsync(siteId, laneId, input, "DENY", $"TYPE_DISABLED:{type}", ct: ct);
+            return await PersistAsync(siteId, laneId, input, "DENY", $"TYPE_DISABLED:{type}", clientId: site.ClientId, ct: ct);
         }
 
         var credential = await _db.AccessCredentials
@@ -89,25 +117,43 @@ public class AccessService
 
         if (credential is null || !credential.IsActive)
         {
-            return await PersistAsync(siteId, laneId, input, "DENY", "UNKNOWN_CREDENTIAL", ct: ct);
+            return await PersistAsync(siteId, laneId, input, "DENY", "UNKNOWN_CREDENTIAL", clientId: site.ClientId, ct: ct);
         }
 
         if (settings.DenyExpiredCredentials && credential.ExpiresAt is not null && credential.ExpiresAt < DateTime.UtcNow)
         {
             return await PersistAsync(siteId, laneId, input, "DENY", "CREDENTIAL_EXPIRED",
+                clientId: site.ClientId,
                 vehicleId: credential.VehicleId, plateNumber: credential.Vehicle?.PlateNumber, ct: ct);
         }
 
         if (credential.VehicleId is not null && credential.Vehicle is not null)
         {
-            if (settings.RequireActiveVehicle && !credential.Vehicle.IsActive)
+            var v = credential.Vehicle;
+            if (settings.RequireActiveVehicle && !v.IsActive)
             {
                 return await PersistAsync(siteId, laneId, input, "DENY", "VEHICLE_INACTIVE",
-                    vehicleId: credential.VehicleId, plateNumber: credential.Vehicle.PlateNumber, ct: ct);
+                    clientId: site.ClientId, vehicleId: v.Id, plateNumber: v.PlateNumber, ct: ct);
+            }
+            if (settings.DenyBlacklistedVehicles && v.IsBlacklisted)
+            {
+                return await PersistAsync(siteId, laneId, input, "DENY", "VEHICLE_BLACKLISTED",
+                    clientId: site.ClientId, vehicleId: v.Id, plateNumber: v.PlateNumber, ct: ct);
+            }
+            var now = DateTime.UtcNow;
+            if (v.ValidFrom is not null && v.ValidFrom > now)
+            {
+                return await PersistAsync(siteId, laneId, input, "DENY", "VEHICLE_NOT_YET_VALID",
+                    clientId: site.ClientId, vehicleId: v.Id, plateNumber: v.PlateNumber, ct: ct);
+            }
+            if (v.ValidUntil is not null && v.ValidUntil < now)
+            {
+                return await PersistAsync(siteId, laneId, input, "DENY", "VEHICLE_EXPIRED",
+                    clientId: site.ClientId, vehicleId: v.Id, plateNumber: v.PlateNumber, ct: ct);
             }
 
             return await PersistAsync(siteId, laneId, input, "ALLOW", "RESIDENT_VEHICLE",
-                vehicleId: credential.VehicleId, plateNumber: credential.Vehicle.PlateNumber, ct: ct);
+                clientId: site.ClientId, vehicleId: v.Id, plateNumber: v.PlateNumber, ct: ct);
         }
 
         if (credential.VisitorPass is not null)
@@ -116,21 +162,25 @@ public class AccessService
             var now = DateTime.UtcNow;
             if (!pass.IsActive)
             {
-                return await PersistAsync(siteId, laneId, input, "DENY", "VISITOR_INACTIVE", guestName: pass.GuestName, ct: ct);
+                return await PersistAsync(siteId, laneId, input, "DENY", "VISITOR_INACTIVE",
+                    clientId: site.ClientId, guestName: pass.GuestName, ct: ct);
             }
             if (pass.ValidFrom > now || pass.ValidUntil < now)
             {
-                return await PersistAsync(siteId, laneId, input, "DENY", "VISITOR_OUTSIDE_WINDOW", guestName: pass.GuestName, ct: ct);
+                return await PersistAsync(siteId, laneId, input, "DENY", "VISITOR_OUTSIDE_WINDOW",
+                    clientId: site.ClientId, guestName: pass.GuestName, ct: ct);
             }
             if (pass.UsedCount >= pass.MaxUses)
             {
-                return await PersistAsync(siteId, laneId, input, "DENY", "VISITOR_MAX_USES", guestName: pass.GuestName, ct: ct);
+                return await PersistAsync(siteId, laneId, input, "DENY", "VISITOR_MAX_USES",
+                    clientId: site.ClientId, guestName: pass.GuestName, ct: ct);
             }
 
             pass.UsedCount += 1;
             await _db.SaveChangesAsync(ct);
 
             return await PersistAsync(siteId, laneId, input, "ALLOW", "VISITOR_PASS",
+                clientId: site.ClientId,
                 guestName: pass.GuestName,
                 metaExtra: new Dictionary<string, object?>
                 {
@@ -140,7 +190,7 @@ public class AccessService
                 ct: ct);
         }
 
-        return await PersistAsync(siteId, laneId, input, "DENY", "CREDENTIAL_NOT_LINKED", ct: ct);
+        return await PersistAsync(siteId, laneId, input, "DENY", "CREDENTIAL_NOT_LINKED", clientId: site.ClientId, ct: ct);
     }
 
     private async Task<AccessCheckResult> PersistAsync(
@@ -149,13 +199,17 @@ public class AccessService
         AccessCheckRequest input,
         string decision,
         string reason,
+        string? clientId = null,
         string? vehicleId = null,
         string? plateNumber = null,
         string? guestName = null,
+        string? openMethod = null,
+        string? eventType = null,
         Dictionary<string, object?>? metaExtra = null,
         CancellationToken ct = default)
     {
         var site = await _db.Sites.AsNoTracking().FirstOrDefaultAsync(s => s.Id == siteId, ct);
+        clientId ??= site?.ClientId;
         var settings = SiteSettings.Parse(site?.Settings);
         var shouldLog = decision == "ALLOW" || settings.LogDeniedAttempts;
         var eventId = "";
@@ -173,13 +227,19 @@ public class AccessService
             }
             if (guestName is not null) meta["guestName"] = guestName;
 
+            var resolvedEventType = eventType
+                ?? (decision == "ALLOW" ? AccessEventTypes.Pass : AccessEventTypes.Fail);
+
             var evt = new AccessEvent
             {
                 SiteId = siteId,
+                ClientId = clientId,
                 LaneId = laneId,
                 CredentialType = input.CredentialType.ToUpperInvariant(),
                 CredentialCode = input.Code,
                 Decision = decision,
+                EventType = resolvedEventType,
+                OpenMethod = openMethod ?? OpenMethods.Auto,
                 Reason = reason,
                 VehicleId = vehicleId,
                 PlateNumber = plateNumber,

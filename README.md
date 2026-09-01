@@ -21,7 +21,9 @@ Boom-barrier access — **multi-tenant** (Park+ style):
 - **Local:** SQLite (`gateflow.db`)
 - **Production:** set `Database:Provider` = `SqlServer`
 
-Tenancy tables: `Clients`, `Users`, `Sites` (+ lanes/vehicles/credentials/events).
+Full PARK+ style schema (subscriptions, RBAC, gates, hardware, heartbeats, manual overrides, audit, reports): see [`backend/docs/db-design.md`](backend/docs/db-design.md).
+
+Tenancy tables include: `Clients`, `Subscriptions`, `Users`, `Roles`, `Sites`, `Lanes` (gates), `Vehicles`, `HardwareDevices`, `AccessEvents`, …
 
 ## Run
 

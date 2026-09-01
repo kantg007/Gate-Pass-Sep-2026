@@ -220,7 +220,9 @@ app.MapPost("/v1/sites", async (CreateSiteBody body, ClaimsPrincipal user, GateF
     db.Lanes.Add(new Lane
     {
         SiteId = site.Id,
+        ClientId = clientId,
         Name = "Main Entry",
+        Code = "GATE-IN-1",
         Direction = "ENTRY",
         DeviceApiKey = $"dev_{Guid.NewGuid():N}"[..24],
     });
@@ -273,9 +275,11 @@ app.MapPost("/v1/sites/{siteId}/vehicles", async (string siteId, CreateVehicleBo
     if (CurrentUser.Role(user) == Roles.Guard) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(body.PlateNumber)) return Results.BadRequest(new { error = "INVALID_BODY" });
 
+    var siteRow = await db.Sites.AsNoTracking().FirstAsync(s => s.Id == siteId);
     var vehicle = new Vehicle
     {
         SiteId = siteId,
+        ClientId = siteRow.ClientId,
         PlateNumber = body.PlateNumber.Trim().ToUpperInvariant(),
         Label = body.Label,
         UnitId = string.IsNullOrWhiteSpace(body.UnitId) ? null : body.UnitId,
@@ -338,10 +342,52 @@ app.MapGet("/v1/sites/{siteId}/events", async (string siteId, ClaimsPrincipal us
         .Include(e => e.Lane).OrderByDescending(e => e.CreatedAt).Take(take).ToListAsync();
     return Results.Json(events.Select(e => new
     {
-        e.Id, e.Decision, e.Reason, e.CredentialType, e.CredentialCode, e.PlateNumber, e.CreatedAt,
-        lane = e.Lane == null ? null : new { e.Lane.Name },
+        e.Id, e.Decision, e.EventType, e.OpenMethod, e.Reason,
+        e.CredentialType, e.CredentialCode, e.PlateNumber, e.ActorUserId, e.CreatedAt,
+        lane = e.Lane == null ? null : new { e.Lane.Id, e.Lane.Name, e.Lane.Code },
         meta = SafeJson(e.Meta),
     }));
+}).RequireAuthorization();
+
+// Client / site / gate wise report summary (Pass / Fail / Manual)
+app.MapGet("/v1/reports/access-summary", async (
+    ClaimsPrincipal user, GateFlowDbContext db,
+    string? clientId, string? siteId, string? gateId,
+    DateTime? from, DateTime? to) =>
+{
+    var fromUtc = from?.ToUniversalTime() ?? DateTime.UtcNow.AddDays(-7);
+    var toUtc = to?.ToUniversalTime() ?? DateTime.UtcNow;
+
+    var q = db.AccessEvents.AsNoTracking().Where(e => e.CreatedAt >= fromUtc && e.CreatedAt <= toUtc);
+
+    if (CurrentUser.IsPlatformAdmin(user))
+    {
+        if (!string.IsNullOrWhiteSpace(clientId)) q = q.Where(e => e.ClientId == clientId);
+    }
+    else
+    {
+        var scopedClient = CurrentUser.ClientId(user);
+        if (scopedClient is null) return Results.Forbid();
+        q = q.Where(e => e.ClientId == scopedClient);
+        var siteScope = CurrentUser.SiteId(user);
+        if (!string.IsNullOrEmpty(siteScope)) q = q.Where(e => e.SiteId == siteScope);
+    }
+
+    if (!string.IsNullOrWhiteSpace(siteId)) q = q.Where(e => e.SiteId == siteId);
+    if (!string.IsNullOrWhiteSpace(gateId)) q = q.Where(e => e.LaneId == gateId);
+
+    var rows = await q.GroupBy(e => new { e.ClientId, e.SiteId, e.LaneId, e.EventType })
+        .Select(g => new
+        {
+            g.Key.ClientId,
+            g.Key.SiteId,
+            gateId = g.Key.LaneId,
+            eventType = g.Key.EventType,
+            count = g.Count(),
+        })
+        .ToListAsync();
+
+    return Results.Json(new { from = fromUtc, to = toUtc, rows });
 }).RequireAuthorization();
 
 app.MapGet("/v1/sites/{siteId}/lanes", async (string siteId, ClaimsPrincipal user, GateFlowDbContext db) =>

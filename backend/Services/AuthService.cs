@@ -50,6 +50,33 @@ public class AuthService
 
         _db.Clients.Add(client);
         _db.Users.Add(user);
+
+        var starter = await _db.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == "STARTER");
+        if (starter is not null)
+        {
+            _db.Subscriptions.Add(new Subscription
+            {
+                ClientId = client.Id,
+                PlanId = starter.Id,
+                Status = "Trial",
+                StartsAt = DateTime.UtcNow,
+                EndsAt = DateTime.UtcNow.AddDays(14),
+                GraceEndsAt = DateTime.UtcNow.AddDays(21),
+            });
+        }
+
+        await _db.SaveChangesAsync();
+        var adminRole = await SeedData.EnsureClientDefaultRolesAsync(_db, client.Id);
+        _db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = adminRole.Id });
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ClientId = client.Id,
+            ActorUserId = user.Id,
+            Action = "CLIENT_REGISTER",
+            EntityType = "Client",
+            EntityId = client.Id,
+            Summary = $"Self-registered client {client.Name}",
+        });
         await _db.SaveChangesAsync();
 
         var token = CreateToken(user);
