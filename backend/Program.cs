@@ -76,7 +76,8 @@ builder.Services.AddSwaggerGen(options =>
         if (path.StartsWith("v1/sites", StringComparison.OrdinalIgnoreCase)) return ["Sites"];
         if (path.StartsWith("v1/reports", StringComparison.OrdinalIgnoreCase)) return ["Reports"];
         if (path.StartsWith("v1/access", StringComparison.OrdinalIgnoreCase)) return ["Access (Device)"];
-        if (path.Equals("health", StringComparison.OrdinalIgnoreCase)) return ["Health"];
+        if (path.Equals("health", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("api/health", StringComparison.OrdinalIgnoreCase)) return ["Health"];
         return ["Other"];
     });
     options.DocInclusionPredicate((_, _) => true);
@@ -132,29 +133,34 @@ using (var scope = app.Services.CreateScope())
     await SeedData.EnsureSeedAsync(db);
 }
 
-var swaggerEnabled = builder.Configuration.GetValue("Swagger:Enabled", true);
-if (swaggerEnabled || app.Environment.IsDevelopment())
+// Swagger always available so /swagger opens after `dotnet run`
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "GateFlow API v1");
-        c.DocumentTitle = "GateFlow API";
-        c.DisplayRequestDuration();
-        c.EnableTryItOutByDefault();
-        c.ConfigObject.AdditionalItems["persistAuthorization"] = true;
-    });
-    app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "GateFlow API v1");
+    c.RoutePrefix = "swagger";
+    c.DocumentTitle = "GateFlow API";
+    c.DisplayRequestDuration();
+    c.EnableTryItOutByDefault();
+    c.ConfigObject.AdditionalItems["persistAuthorization"] = true;
+});
+app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Json(new { ok = true, service = "gateflow-api", runtime = ".NET" }))
+app.MapGet("/health", async (GateFlowDbContext db) => await HealthPayloadAsync(db))
     .WithTags("Health")
     .WithSummary("Health check")
-    .WithDescription("Returns API liveness.");
+    .WithDescription("Returns API liveness and database connectivity.")
+    .AllowAnonymous();
+
+app.MapGet("/api/health", async (GateFlowDbContext db) => await HealthPayloadAsync(db))
+    .WithTags("Health")
+    .WithSummary("Health check (api alias)")
+    .WithDescription("Same as /health — convenient for clients that expect /api/health.")
+    .AllowAnonymous();
 
 // —— Auth (public) ——
 app.MapPost("/v1/auth/register", async (RegisterBody body, AuthService auth) =>
@@ -554,6 +560,30 @@ app.MapPost("/v1/access/check", async (AccessCheckBody body, HttpRequest req, Ac
 .AllowAnonymous();
 
 app.Run();
+
+static async Task<IResult> HealthPayloadAsync(GateFlowDbContext db)
+{
+    string dbStatus;
+    try
+    {
+        dbStatus = await db.Database.CanConnectAsync() ? "up" : "down";
+    }
+    catch
+    {
+        dbStatus = "down";
+    }
+
+    var ok = dbStatus == "up";
+    return Results.Json(new
+    {
+        status = ok ? "Healthy" : "Degraded",
+        ok,
+        service = "gateflow-api",
+        runtime = ".NET",
+        utc = DateTime.UtcNow,
+        database = dbStatus,
+    });
+}
 
 static bool CanAccessSite(ClaimsPrincipal user, Site site)
 {

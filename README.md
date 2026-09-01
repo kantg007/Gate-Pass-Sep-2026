@@ -32,8 +32,10 @@ cd backend && dotnet run
 cd frontend && npm install && npm run dev
 ```
 
+`dotnet run` opens **Swagger** in the browser (`launchUrl: swagger`). Root `/` also redirects to Swagger.
+
 - UI: http://127.0.0.1:5173  
-- API: http://127.0.0.1:8787/health  
+- Health: http://127.0.0.1:8787/health (alias: `/api/health`)  
 - **Swagger UI:** http://127.0.0.1:8787/swagger  
 
 Open Swagger → `POST /v1/auth/login` → **Authorize** with the JWT → try Sites / Reports.  

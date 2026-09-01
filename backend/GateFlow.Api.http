@@ -1,6 +1,14 @@
-@GateFlow.Api_HostAddress = http://localhost:5004
+@GateFlow.Api_HostAddress = http://127.0.0.1:8787
 
-GET {{GateFlow.Api_HostAddress}}/weatherforecast/
+### Health
+GET {{GateFlow.Api_HostAddress}}/health
 Accept: application/json
+
+###
+GET {{GateFlow.Api_HostAddress}}/api/health
+Accept: application/json
+
+###
+GET {{GateFlow.Api_HostAddress}}/swagger/index.html
 
 ###
