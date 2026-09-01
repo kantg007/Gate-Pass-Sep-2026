@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0f1419;
+  --panel: #1a222d;
+  --panel-2: #232d3b;
+  --line: #2f3b4c;
+  --text: #e8eef6;
+  --muted: #8b9bb0;
+  --accent: #e8a838;
+  --ok: #3ecf8e;
+  --bad: #f07178;
+  --font: "DM Sans", "Segoe UI", sans-serif;
+  --display: "Syne", "DM Sans", sans-serif;
+}
+
+@font-face {
+  font-family: "Syne";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/syne/v22/8vIS7w4qph-vyi2TyXc4x0j1hJQ.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/dmsans/v15/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwA.woff2")
+    format("woff2");
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #243246 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #2a2110 0%, transparent 45%),
+    var(--bg);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
