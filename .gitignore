@@ -4,7 +4,13 @@ dist
 .env.local
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 .DS_Store
 .vite
 coverage
 .next
+backend/bin/
+backend/obj/
+*.user
+.vs/
