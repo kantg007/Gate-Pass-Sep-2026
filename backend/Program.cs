@@ -8,6 +8,7 @@ using GateFlow.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +19,68 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 });
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "GateFlow API",
+        Version = "v1",
+        Description = """
+            PARK+ style multi-tenant boom-barrier / parking access API.
+
+            **How to try authenticated APIs**
+            1. Call `POST /v1/auth/login` (demo: `client@greenvalley.local` / `Client@123`)
+            2. Click **Authorize** → paste the JWT token (Swagger adds Bearer automatically)
+            3. Call Sites / Vehicles / Reports endpoints
+
+            **Device API** (`POST /v1/access/check`) uses header `X-Device-Key`
+            (demo: `dev_demo_lane_key_001`) — no JWT.
+            """,
+        Contact = new OpenApiContact { Name = "GateFlow", Email = "admin@gateflow.local" },
+    });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "JWT from /v1/auth/login. Paste token only — Swagger adds Bearer prefix.",
+    });
+
+    options.AddSecurityDefinition("DeviceKey", new OpenApiSecurityScheme
+    {
+        Name = "X-Device-Key",
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Description = "Hardware / lane device API key (demo: dev_demo_lane_key_001)",
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" },
+            },
+            Array.Empty<string>()
+        },
+    });
+
+    options.TagActionsBy(api =>
+    {
+        var path = api.RelativePath ?? "";
+        if (path.StartsWith("v1/auth", StringComparison.OrdinalIgnoreCase)) return ["Auth"];
+        if (path.StartsWith("v1/admin", StringComparison.OrdinalIgnoreCase)) return ["Admin"];
+        if (path.StartsWith("v1/sites", StringComparison.OrdinalIgnoreCase)) return ["Sites"];
+        if (path.StartsWith("v1/reports", StringComparison.OrdinalIgnoreCase)) return ["Reports"];
+        if (path.StartsWith("v1/access", StringComparison.OrdinalIgnoreCase)) return ["Access (Device)"];
+        if (path.Equals("health", StringComparison.OrdinalIgnoreCase)) return ["Health"];
+        return ["Other"];
+    });
+    options.DocInclusionPredicate((_, _) => true);
+});
 builder.Services.AddScoped<AccessService>();
 builder.Services.AddScoped<AuthService>();
 
@@ -70,17 +132,29 @@ using (var scope = app.Services.CreateScope())
     await SeedData.EnsureSeedAsync(db);
 }
 
-if (app.Environment.IsDevelopment())
+var swaggerEnabled = builder.Configuration.GetValue("Swagger:Enabled", true);
+if (swaggerEnabled || app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "GateFlow API v1");
+        c.DocumentTitle = "GateFlow API";
+        c.DisplayRequestDuration();
+        c.EnableTryItOutByDefault();
+        c.ConfigObject.AdditionalItems["persistAuthorization"] = true;
+    });
+    app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 }
 
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Json(new { ok = true, service = "gateflow-api", runtime = ".NET" }));
+app.MapGet("/health", () => Results.Json(new { ok = true, service = "gateflow-api", runtime = ".NET" }))
+    .WithTags("Health")
+    .WithSummary("Health check")
+    .WithDescription("Returns API liveness.");
 
 // —— Auth (public) ——
 app.MapPost("/v1/auth/register", async (RegisterBody body, AuthService auth) =>
@@ -96,13 +170,19 @@ app.MapPost("/v1/auth/register", async (RegisterBody body, AuthService auth) =>
     var (ok, error, payload) = await auth.RegisterClientAsync(
         body.CompanyName, body.FullName, body.Email, body.Password, body.Phone);
     return ok ? Results.Json(payload, statusCode: 201) : Results.Conflict(new { error });
-});
+})
+.WithTags("Auth")
+.WithSummary("Register new client + admin user")
+.AllowAnonymous();
 
 app.MapPost("/v1/auth/login", async (LoginBody body, AuthService auth) =>
 {
     var (ok, error, payload) = await auth.LoginAsync(body.Email, body.Password);
     return ok ? Results.Json(payload) : Results.Json(new { error }, statusCode: 401);
-});
+})
+.WithTags("Auth")
+.WithSummary("Login and get JWT")
+.AllowAnonymous();
 
 app.MapGet("/v1/auth/me", async (ClaimsPrincipal principal, GateFlowDbContext db) =>
 {
@@ -120,7 +200,10 @@ app.MapGet("/v1/auth/me", async (ClaimsPrincipal principal, GateFlowDbContext db
         user.SiteId,
         client = user.Client == null ? null : new { user.Client.Id, user.Client.Name, user.Client.Status },
     });
-}).RequireAuthorization();
+})
+.WithTags("Auth")
+.WithSummary("Current user profile")
+.RequireAuthorization();
 
 // —— Platform admin: all clients ——
 app.MapGet("/v1/admin/clients", async (ClaimsPrincipal user, GateFlowDbContext db) =>
@@ -141,7 +224,10 @@ app.MapGet("/v1/admin/clients", async (ClaimsPrincipal user, GateFlowDbContext d
         })
         .ToListAsync();
     return Results.Json(clients);
-}).RequireAuthorization();
+})
+.WithTags("Admin")
+.WithSummary("List all clients (platform admin)")
+.RequireAuthorization();
 
 app.MapPatch("/v1/admin/clients/{clientId}/status", async (
     string clientId, StatusBody body, ClaimsPrincipal user, GateFlowDbContext db) =>
@@ -152,7 +238,10 @@ app.MapPatch("/v1/admin/clients/{clientId}/status", async (
     client.Status = body.Status;
     await db.SaveChangesAsync();
     return Results.Json(new { client.Id, client.Status });
-}).RequireAuthorization();
+})
+.WithTags("Admin")
+.WithSummary("Suspend / activate client")
+.RequireAuthorization();
 
 // —— Client creates / lists their sites ——
 app.MapGet("/v1/sites", async (ClaimsPrincipal user, GateFlowDbContext db) =>
@@ -192,7 +281,10 @@ app.MapGet("/v1/sites", async (ClaimsPrincipal user, GateFlowDbContext db) =>
         })
         .ToListAsync();
     return Results.Json(sites);
-}).RequireAuthorization();
+})
+.WithTags("Sites")
+.WithSummary("List sites for current tenant")
+.RequireAuthorization();
 
 app.MapPost("/v1/sites", async (CreateSiteBody body, ClaimsPrincipal user, GateFlowDbContext db) =>
 {
@@ -228,7 +320,10 @@ app.MapPost("/v1/sites", async (CreateSiteBody body, ClaimsPrincipal user, GateF
     });
     await db.SaveChangesAsync();
     return Results.Json(new { site.Id, site.Name, site.Slug, site.ClientId }, statusCode: 201);
-}).RequireAuthorization();
+})
+.WithTags("Sites")
+.WithSummary("Create site (+ default entry gate)")
+.RequireAuthorization();
 
 app.MapGet("/v1/sites/{siteId}", async (string siteId, ClaimsPrincipal user, GateFlowDbContext db) =>
 {
@@ -249,7 +344,10 @@ app.MapGet("/v1/sites/{siteId}", async (string siteId, ClaimsPrincipal user, Gat
         lanes = site.Lanes,
         units = site.Units.Select(u => new { u.Id, u.Label, u.Block, u.Floor }),
     });
-}).RequireAuthorization();
+})
+.WithTags("Sites")
+.WithSummary("Get site detail with gates and units")
+.RequireAuthorization();
 
 app.MapGet("/v1/sites/{siteId}/vehicles", async (string siteId, ClaimsPrincipal user, GateFlowDbContext db) =>
 {
@@ -267,7 +365,10 @@ app.MapGet("/v1/sites/{siteId}/vehicles", async (string siteId, ClaimsPrincipal 
             credentials = v.Credentials.Select(c => new { c.Id, c.Type, c.Code }),
         }).ToListAsync();
     return Results.Json(vehicles);
-}).RequireAuthorization();
+})
+.WithTags("Sites")
+.WithSummary("List vehicles for a site")
+.RequireAuthorization();
 
 app.MapPost("/v1/sites/{siteId}/vehicles", async (string siteId, CreateVehicleBody body, ClaimsPrincipal user, GateFlowDbContext db) =>
 {
@@ -298,7 +399,10 @@ app.MapPost("/v1/sites/{siteId}/vehicles", async (string siteId, CreateVehicleBo
     }
     await db.SaveChangesAsync();
     return Results.Json(new { vehicle, credentials = creds }, statusCode: 201);
-}).RequireAuthorization();
+})
+.WithTags("Sites")
+.WithSummary("Add vehicle (+ optional RFID/barcode)")
+.RequireAuthorization();
 
 app.MapPost("/v1/sites/{siteId}/visitors", async (string siteId, CreateVisitorBody body, ClaimsPrincipal user, GateFlowDbContext db) =>
 {
@@ -332,7 +436,10 @@ app.MapPost("/v1/sites/{siteId}/visitors", async (string siteId, CreateVisitorBo
     });
     await db.SaveChangesAsync();
     return Results.Json(new { visitorPass = pass, qrPayload = qrCode }, statusCode: 201);
-}).RequireAuthorization();
+})
+.WithTags("Sites")
+.WithSummary("Create visitor pass + QR code")
+.RequireAuthorization();
 
 app.MapGet("/v1/sites/{siteId}/events", async (string siteId, ClaimsPrincipal user, GateFlowDbContext db, int? limit) =>
 {
@@ -347,7 +454,10 @@ app.MapGet("/v1/sites/{siteId}/events", async (string siteId, ClaimsPrincipal us
         lane = e.Lane == null ? null : new { e.Lane.Id, e.Lane.Name, e.Lane.Code },
         meta = SafeJson(e.Meta),
     }));
-}).RequireAuthorization();
+})
+.WithTags("Sites")
+.WithSummary("Recent access events for a site")
+.RequireAuthorization();
 
 // Client / site / gate wise report summary (Pass / Fail / Manual)
 app.MapGet("/v1/reports/access-summary", async (
@@ -388,7 +498,10 @@ app.MapGet("/v1/reports/access-summary", async (
         .ToListAsync();
 
     return Results.Json(new { from = fromUtc, to = toUtc, rows });
-}).RequireAuthorization();
+})
+.WithTags("Reports")
+.WithSummary("Client / site / gate Pass-Fail-Manual summary")
+.RequireAuthorization();
 
 app.MapGet("/v1/sites/{siteId}/lanes", async (string siteId, ClaimsPrincipal user, GateFlowDbContext db) =>
 {
@@ -398,7 +511,10 @@ app.MapGet("/v1/sites/{siteId}/lanes", async (string siteId, ClaimsPrincipal use
     {
         l.Id, l.Name, l.Direction, l.DeviceApiKey, l.IsActive, config = SafeJson(l.Config),
     }));
-}).RequireAuthorization();
+})
+.WithTags("Sites")
+.WithSummary("List gates (lanes) for a site")
+.RequireAuthorization();
 
 // Device path — no JWT, device key only (Park+ style controller)
 app.MapPost("/v1/access/check", async (AccessCheckBody body, HttpRequest req, AccessService access) =>
@@ -410,7 +526,32 @@ app.MapPost("/v1/access/check", async (AccessCheckBody body, HttpRequest req, Ac
     var result = await access.CheckAsync(new AccessCheckRequest(
         body.CredentialType, body.Code, body.SiteId, body.LaneId, deviceKey, body.Meta));
     return result.Open ? Results.Json(result) : Results.Json(result, statusCode: 403);
-});
+})
+.WithTags("Access (Device)")
+.WithSummary("Hardware access check (open / deny)")
+.WithDescription("Send credential scan from controller. Auth via X-Device-Key header (or siteId/laneId in body). Demo key: dev_demo_lane_key_001, RFID: RFID-1001.")
+.WithOpenApi(op =>
+{
+    op.Parameters ??= new List<OpenApiParameter>();
+    op.Parameters.Add(new OpenApiParameter
+    {
+        Name = "X-Device-Key",
+        In = ParameterLocation.Header,
+        Required = false,
+        Description = "Lane/device API key. Demo: dev_demo_lane_key_001",
+        Schema = new OpenApiSchema { Type = "string" },
+    });
+    op.Security = new List<OpenApiSecurityRequirement>
+    {
+        new()
+        {
+            [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "DeviceKey" } }] =
+                Array.Empty<string>(),
+        },
+    };
+    return op;
+})
+.AllowAnonymous();
 
 app.Run();
 

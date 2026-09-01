@@ -34,6 +34,10 @@ cd frontend && npm install && npm run dev
 
 - UI: http://127.0.0.1:5173  
 - API: http://127.0.0.1:8787/health  
+- **Swagger UI:** http://127.0.0.1:8787/swagger  
+
+Open Swagger → `POST /v1/auth/login` → **Authorize** with the JWT → try Sites / Reports.  
+Device endpoint `POST /v1/access/check` uses header `X-Device-Key` (`dev_demo_lane_key_001`).
 
 ### Demo accounts
 
