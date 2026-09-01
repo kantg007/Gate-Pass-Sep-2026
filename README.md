@@ -13,26 +13,38 @@ Boom-barrier access — **multi-tenant** (Park+ style):
 
 | Folder | Tech |
 |--------|------|
-| `backend/` | .NET 8 + EF Core Code First |
+| `backend/` | .NET 8 solution (layered) |
 | `frontend/` | React (Vite) |
+
+### Backend solution layout
+
+```
+backend/
+  GateFlow.sln
+  docs/
+  src/
+    GateFlow.Api/             # Controllers, Program, Swagger, DI host
+    GateFlow.Contracts/       # Request/response DTOs shared with UI clients
+    GateFlow.Application/     # Abstractions (IAuthService, IAccessService), CurrentUser
+    GateFlow.Domain/          # Entities + domain constants / SiteSettings
+    GateFlow.Infrastructure/  # EF Core, migrations, seed, service implementations
+```
 
 ## Database
 
 - **Local:** SQLite (`gateflow.db`)
 - **Production:** set `Database:Provider` = `SqlServer`
 
-Full PARK+ style schema (subscriptions, RBAC, gates, hardware, heartbeats, manual overrides, audit, reports): see [`backend/docs/db-design.md`](backend/docs/db-design.md).
-
-Tenancy tables include: `Clients`, `Subscriptions`, `Users`, `Roles`, `Sites`, `Lanes` (gates), `Vehicles`, `HardwareDevices`, `AccessEvents`, …
+Full PARK+ style schema: [`backend/docs/db-design.md`](backend/docs/db-design.md).
 
 ## Run
 
 ```bash
-cd backend && dotnet run
+cd backend && dotnet run --project src/GateFlow.Api
 cd frontend && npm install && npm run dev
 ```
 
-`dotnet run` opens **Swagger** in the browser (`launchUrl: swagger`). Root `/` also redirects to Swagger.
+`dotnet run` opens **Swagger** (`launchUrl: swagger`). Root `/` redirects to Swagger.
 
 - UI: http://127.0.0.1:5173  
 - Health: http://127.0.0.1:8787/health (alias: `/api/health`)  

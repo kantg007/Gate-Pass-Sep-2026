@@ -1,6 +1,6 @@
 using GateFlow.Application.Abstractions;
 using GateFlow.Infrastructure.Persistence;
-using GateFlow.Infrastructure.Services;
+using GateFlow.Infrastructure.Handlers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,13 +19,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddDbContext<GateFlowDbContext>(options =>
         {
             if (string.Equals(provider, "SqlServer", StringComparison.OrdinalIgnoreCase))
-                options.UseSqlServer(sqlServerCs);
+                options.UseSqlServer(sqlServerCs, sql => sql.MigrationsAssembly(typeof(GateFlowDbContext).Assembly.FullName));
             else
-                options.UseSqlite(sqliteCs);
+                options.UseSqlite(sqliteCs, sqlite => sqlite.MigrationsAssembly(typeof(GateFlowDbContext).Assembly.FullName));
         });
 
-        services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<IAccessService, AccessService>();
+        services.AddScoped<IAuthService, AuthHandler>();
+        services.AddScoped<IAccessService, AccessCheckHandler>();
 
         return services;
     }

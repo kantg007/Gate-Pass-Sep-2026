@@ -17,7 +17,10 @@ public sealed class SiteSettingsDto
     public Dictionary<string, bool> Features { get; set; } = new();
 }
 
-public sealed record SiteCountsDto(int Vehicles, int Lanes, int Events);
+public sealed record SiteCountsDto(
+    [property: JsonPropertyName("vehicles")] int Vehicles,
+    [property: JsonPropertyName("lanes")] int Lanes,
+    [property: JsonPropertyName("events")] int Events);
 
 public sealed record SiteListItemDto(
     string Id,
