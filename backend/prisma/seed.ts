@@ -1,6 +1,5 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { nanoid } from "nanoid";
 import { stringifySettings } from "../src/lib/settings";
 
 const prisma = new PrismaClient();
