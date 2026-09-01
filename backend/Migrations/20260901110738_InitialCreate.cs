@@ -12,10 +12,28 @@ namespace GateFlow.Api.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "Clients",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "TEXT", nullable: false),
+                    Name = table.Column<string>(type: "TEXT", nullable: false),
+                    ContactEmail = table.Column<string>(type: "TEXT", nullable: true),
+                    Phone = table.Column<string>(type: "TEXT", nullable: true),
+                    Status = table.Column<string>(type: "TEXT", nullable: false),
+                    Meta = table.Column<string>(type: "TEXT", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Clients", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Sites",
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "TEXT", nullable: false),
+                    ClientId = table.Column<string>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", nullable: false),
                     Slug = table.Column<string>(type: "TEXT", nullable: false),
                     Settings = table.Column<string>(type: "TEXT", nullable: false),
@@ -26,6 +44,12 @@ namespace GateFlow.Api.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Sites", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Sites_Clients_ClientId",
+                        column: x => x.ClientId,
+                        principalTable: "Clients",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -71,6 +95,37 @@ namespace GateFlow.Api.Migrations
                         principalTable: "Sites",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Users",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "TEXT", nullable: false),
+                    Email = table.Column<string>(type: "TEXT", nullable: false),
+                    PasswordHash = table.Column<string>(type: "TEXT", nullable: false),
+                    FullName = table.Column<string>(type: "TEXT", nullable: false),
+                    Role = table.Column<string>(type: "TEXT", nullable: false),
+                    ClientId = table.Column<string>(type: "TEXT", nullable: true),
+                    SiteId = table.Column<string>(type: "TEXT", nullable: true),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Users", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Users_Clients_ClientId",
+                        column: x => x.ClientId,
+                        principalTable: "Clients",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Users_Sites_SiteId",
+                        column: x => x.SiteId,
+                        principalTable: "Sites",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateTable(
@@ -240,6 +295,11 @@ namespace GateFlow.Api.Migrations
                 columns: new[] { "SiteId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Clients_Name",
+                table: "Clients",
+                column: "Name");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Lanes_DeviceApiKey",
                 table: "Lanes",
                 column: "DeviceApiKey",
@@ -249,6 +309,11 @@ namespace GateFlow.Api.Migrations
                 name: "IX_Lanes_SiteId",
                 table: "Lanes",
                 column: "SiteId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Sites_ClientId",
+                table: "Sites",
+                column: "ClientId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Sites_Slug",
@@ -261,6 +326,22 @@ namespace GateFlow.Api.Migrations
                 table: "Units",
                 columns: new[] { "SiteId", "Label" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_ClientId",
+                table: "Users",
+                column: "ClientId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_Email",
+                table: "Users",
+                column: "Email",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_SiteId",
+                table: "Users",
+                column: "SiteId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Vehicles_SiteId_PlateNumber",
@@ -294,6 +375,9 @@ namespace GateFlow.Api.Migrations
                 name: "AccessEvents");
 
             migrationBuilder.DropTable(
+                name: "Users");
+
+            migrationBuilder.DropTable(
                 name: "Vehicles");
 
             migrationBuilder.DropTable(
@@ -307,6 +391,9 @@ namespace GateFlow.Api.Migrations
 
             migrationBuilder.DropTable(
                 name: "Sites");
+
+            migrationBuilder.DropTable(
+                name: "Clients");
         }
     }
 }

@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GateFlow.Api.Migrations
 {
     [DbContext(typeof(GateFlowDbContext))]
-    [Migration("20260901105942_InitialCreate")]
+    [Migration("20260901110738_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -119,6 +119,84 @@ namespace GateFlow.Api.Migrations
                     b.ToTable("AccessEvents");
                 });
 
+            modelBuilder.Entity("GateFlow.Api.Models.AppUser", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SiteId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("SiteId");
+
+                    b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("GateFlow.Api.Models.Client", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContactEmail")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Meta")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.ToTable("Clients");
+                });
+
             modelBuilder.Entity("GateFlow.Api.Models.Lane", b =>
                 {
                     b.Property<string>("Id")
@@ -162,6 +240,10 @@ namespace GateFlow.Api.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ClientId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
@@ -184,6 +266,8 @@ namespace GateFlow.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -351,6 +435,23 @@ namespace GateFlow.Api.Migrations
                     b.Navigation("Site");
                 });
 
+            modelBuilder.Entity("GateFlow.Api.Models.AppUser", b =>
+                {
+                    b.HasOne("GateFlow.Api.Models.Client", "Client")
+                        .WithMany("Users")
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("GateFlow.Api.Models.Site", "Site")
+                        .WithMany("Users")
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Client");
+
+                    b.Navigation("Site");
+                });
+
             modelBuilder.Entity("GateFlow.Api.Models.Lane", b =>
                 {
                     b.HasOne("GateFlow.Api.Models.Site", "Site")
@@ -360,6 +461,17 @@ namespace GateFlow.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("GateFlow.Api.Models.Site", b =>
+                {
+                    b.HasOne("GateFlow.Api.Models.Client", "Client")
+                        .WithMany("Sites")
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Client");
                 });
 
             modelBuilder.Entity("GateFlow.Api.Models.Unit", b =>
@@ -409,6 +521,13 @@ namespace GateFlow.Api.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("GateFlow.Api.Models.Client", b =>
+                {
+                    b.Navigation("Sites");
+
+                    b.Navigation("Users");
+                });
+
             modelBuilder.Entity("GateFlow.Api.Models.Lane", b =>
                 {
                     b.Navigation("Events");
@@ -423,6 +542,8 @@ namespace GateFlow.Api.Migrations
                     b.Navigation("Lanes");
 
                     b.Navigation("Units");
+
+                    b.Navigation("Users");
 
                     b.Navigation("Vehicles");
 

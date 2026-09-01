@@ -7,7 +7,36 @@ public static class SeedData
 {
     public static async Task EnsureSeedAsync(GateFlowDbContext db)
     {
-        if (await db.Sites.AnyAsync()) return;
+        if (await db.Users.AnyAsync()) return;
+
+        var platformAdmin = new AppUser
+        {
+            Email = "admin@gateflow.local",
+            FullName = "GateFlow Platform Admin",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+            Role = Roles.PlatformAdmin,
+            ClientId = null,
+        };
+        db.Users.Add(platformAdmin);
+
+        var client = new Client
+        {
+            Name = "Green Valley Management",
+            ContactEmail = "client@greenvalley.local",
+            Phone = "9999999999",
+            Status = "Active",
+        };
+        db.Clients.Add(client);
+
+        var clientAdmin = new AppUser
+        {
+            Email = "client@greenvalley.local",
+            FullName = "Society Admin",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Client@123"),
+            Role = Roles.ClientAdmin,
+            ClientId = client.Id,
+        };
+        db.Users.Add(clientAdmin);
 
         var settings = new SiteSettings
         {
@@ -24,20 +53,31 @@ public static class SeedData
 
         var site = new Site
         {
+            ClientId = client.Id,
             Name = "Green Valley Society",
             Slug = "green-valley",
             Settings = settings.ToJson(),
         };
         db.Sites.Add(site);
 
-        var lane = new Lane
+        var guard = new AppUser
+        {
+            Email = "guard@greenvalley.local",
+            FullName = "Gate Guard",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Guard@123"),
+            Role = Roles.Guard,
+            ClientId = client.Id,
+            SiteId = site.Id,
+        };
+        db.Users.Add(guard);
+
+        db.Lanes.Add(new Lane
         {
             SiteId = site.Id,
             Name = "Main Entry",
             Direction = "ENTRY",
             DeviceApiKey = "dev_demo_lane_key_001",
-        };
-        db.Lanes.Add(lane);
+        });
 
         var unitA = new Unit { SiteId = site.Id, Label = "A-101", Block = "A", Floor = "1" };
         var unitB = new Unit { SiteId = site.Id, Label = "B-204", Block = "B", Floor = "2" };

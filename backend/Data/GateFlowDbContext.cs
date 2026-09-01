@@ -10,6 +10,8 @@ public class GateFlowDbContext : DbContext
     {
     }
 
+    public DbSet<Client> Clients => Set<Client>();
+    public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<Lane> Lanes => Set<Lane>();
     public DbSet<Unit> Units => Set<Unit>();
@@ -20,9 +22,23 @@ public class GateFlowDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Client>(e =>
+        {
+            e.HasIndex(x => x.Name);
+        });
+
+        modelBuilder.Entity<AppUser>(e =>
+        {
+            e.HasIndex(x => x.Email).IsUnique();
+            e.HasOne(x => x.Client).WithMany(x => x.Users).HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Site).WithMany(x => x.Users).HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<Site>(e =>
         {
             e.HasIndex(x => x.Slug).IsUnique();
+            e.HasIndex(x => x.ClientId);
+            e.HasOne(x => x.Client).WithMany(x => x.Sites).HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Lane>(e =>

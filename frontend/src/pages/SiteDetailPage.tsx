@@ -80,8 +80,8 @@ export function SiteDetailPage() {
   return (
     <div className="space-y-8">
       <div>
-        <Link to="/" className="text-sm text-[var(--muted)] hover:text-[var(--accent)]">
-          ← Sites
+        <Link to="/app" className="text-sm text-[var(--muted)] hover:text-[var(--accent)]">
+          ← My sites
         </Link>
         <h1 className="mt-2 font-[family-name:var(--display)] text-3xl font-bold">{site.name}</h1>
         <p className="text-[var(--muted)]">Admin · vehicles, visitors, live logs</p>
