@@ -1,0 +1,20 @@
+@GateFlow.Api_HostAddress = http://127.0.0.1:8787
+
+### Health
+GET {{GateFlow.Api_HostAddress}}/health
+Accept: application/json
+
+###
+GET {{GateFlow.Api_HostAddress}}/api/health
+Accept: application/json
+
+### Login
+POST {{GateFlow.Api_HostAddress}}/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "client@greenvalley.local",
+  "password": "Client@123"
+}
+
+###
