@@ -3,6 +3,7 @@ using System;
 using GateFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GateFlow.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(GateFlowDbContext))]
-    partial class GateFlowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902153120_DashboardAlertsBarrierState")]
+    partial class DashboardAlertsBarrierState
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.11");

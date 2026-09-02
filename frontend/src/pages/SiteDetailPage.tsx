@@ -80,15 +80,15 @@ export function SiteDetailPage() {
   return (
     <div className="space-y-8">
       <div>
-        <Link to="/app" className="text-sm text-[var(--muted)] hover:text-[var(--accent)]">
-          ← My sites
+        <Link to="/sites" className="text-sm text-[var(--muted)] hover:text-[var(--accent)]">
+          ← Sites
         </Link>
-        <h1 className="mt-2 font-[family-name:var(--display)] text-3xl font-bold">{site.name}</h1>
-        <p className="text-[var(--muted)]">Admin · vehicles, visitors, live logs</p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight">{site.name}</h1>
+        <p className="text-sm text-[var(--muted)]">Admin · vehicles, visitors, live logs</p>
       </div>
 
       {error && (
-        <p className="rounded-lg border border-[var(--bad)]/40 bg-[var(--panel)] px-3 py-2 text-sm text-[var(--bad)]">
+        <p className="rounded-xl border border-[var(--bad)]/30 bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">
           {error}
         </p>
       )}
@@ -96,7 +96,7 @@ export function SiteDetailPage() {
       <section className="grid gap-6 lg:grid-cols-2">
         <form
           onSubmit={onAddVehicle}
-          className="space-y-3 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5"
+          className="gp-card space-y-3 p-5"
         >
           <h2 className="text-lg font-semibold">Add vehicle + credential</h2>
           <Field name="plateNumber" label="Plate number" placeholder="MH12AB9999" required />
@@ -119,7 +119,7 @@ export function SiteDetailPage() {
           <Field name="barcodeCode" label="Barcode (optional)" placeholder="BC-9999" />
           <button
             disabled={busy}
-            className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-[#1a1408] disabled:opacity-60"
+            className="rounded-xl bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:opacity-60"
           >
             Save vehicle
           </button>
@@ -127,7 +127,7 @@ export function SiteDetailPage() {
 
         <form
           onSubmit={onAddVisitor}
-          className="space-y-3 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5"
+          className="gp-card space-y-3 p-5"
         >
           <h2 className="text-lg font-semibold">Create visitor QR</h2>
           <Field name="guestName" label="Guest name" placeholder="Amit" required />
@@ -161,7 +161,7 @@ export function SiteDetailPage() {
         </form>
       </section>
 
-      <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
+      <section className="gp-card p-5">
         <h2 className="text-lg font-semibold">Vehicles</h2>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[520px] text-left text-sm">
@@ -187,7 +187,7 @@ export function SiteDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
+      <section className="gp-card p-5">
         <h2 className="text-lg font-semibold">Recent access events</h2>
         <ul className="mt-3 space-y-2">
           {events.map((e) => (

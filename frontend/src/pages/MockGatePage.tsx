@@ -62,7 +62,7 @@ export function MockGatePage() {
     <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
       <div className="space-y-4">
         <div>
-          <h1 className="font-[family-name:var(--display)] text-3xl font-bold">Mock gate</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Mock gate</h1>
           <p className="mt-1 text-[var(--muted)]">
             Simulates the IoT controller: sends credential + device key to the API. No hardware needed yet.
           </p>
@@ -171,7 +171,7 @@ export function MockGatePage() {
             </button>
           ))}
         </div>
-        <button className="w-full rounded-lg bg-[var(--accent)] px-4 py-3 font-semibold text-[#1a1408]">
+        <button className="w-full rounded-xl bg-[var(--accent)] px-4 py-3 font-semibold text-white">
           Simulate tap
         </button>
       </form>
