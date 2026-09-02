@@ -44,7 +44,7 @@ cd backend && dotnet run --project src/GateFlow.Api
 cd frontend && npm install && npm run dev
 ```
 
-`dotnet run` opens **Swagger** (`launchUrl: swagger`). Root `/` redirects to Swagger.
+`dotnet run` opens **Swagger** in the browser (`launchUrl: swagger`). Root `/` also redirects to Swagger.
 
 - UI: http://127.0.0.1:5173  
 - Health: http://127.0.0.1:8787/health (alias: `/api/health`)  
