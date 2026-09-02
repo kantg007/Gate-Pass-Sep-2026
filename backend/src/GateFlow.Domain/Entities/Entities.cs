@@ -54,6 +54,37 @@ public static class HardwareStatuses
     public const string Unregistered = "UNREGISTERED";
 }
 
+public static class BarrierStates
+{
+    public const string Open = "OPEN";
+    public const string Closed = "CLOSED";
+    public const string Unknown = "UNKNOWN";
+}
+
+public static class AlertSeverities
+{
+    public const string Info = "INFO";
+    public const string Warning = "WARNING";
+    public const string Critical = "CRITICAL";
+}
+
+public static class AlertStatuses
+{
+    public const string Open = "OPEN";
+    public const string Acknowledged = "ACKNOWLEDGED";
+    public const string Resolved = "RESOLVED";
+}
+
+public static class AlertTypes
+{
+    public const string DeviceOffline = "DEVICE_OFFLINE";
+    public const string AccessDenied = "ACCESS_DENIED";
+    public const string BlacklistHit = "BLACKLIST_HIT";
+    public const string Subscription = "SUBSCRIPTION";
+    public const string GateOffline = "GATE_OFFLINE";
+    public const string Manual = "MANUAL";
+}
+
 // ─── Platform / subscription ───────────────────────────────────────────────
 
 /// <summary>Paying customer (society / mall / RWA) — tenant root.</summary>
@@ -246,6 +277,9 @@ public class Lane
     public string Code { get; set; } = string.Empty; // GATE-IN-1
     /// <summary>ENTRY | EXIT | BOTH</summary>
     public string Direction { get; set; } = "ENTRY";
+    /// <summary>OPEN | CLOSED | UNKNOWN — physical boom position.</summary>
+    public string BarrierState { get; set; } = BarrierStates.Closed;
+    public DateTime? BarrierStateAt { get; set; }
     /// <summary>Legacy device key (prefer HardwareDevices.DeviceApiKey).</summary>
     public string DeviceApiKey { get; set; } = string.Empty;
     public int SortOrder { get; set; }
@@ -470,6 +504,35 @@ public class ManualOverride
     public Lane Gate { get; set; } = null!;
     public Site Site { get; set; } = null!;
     public AppUser ActorUser { get; set; } = null!;
+}
+
+/// <summary>Operational alert for dashboard / notifications.</summary>
+public class Alert
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string? ClientId { get; set; }
+    public string? SiteId { get; set; }
+    public string? GateId { get; set; }
+    public string? DeviceId { get; set; }
+    /// <summary>INFO | WARNING | CRITICAL</summary>
+    public string Severity { get; set; } = AlertSeverities.Warning;
+    /// <summary>DEVICE_OFFLINE | ACCESS_DENIED | BLACKLIST_HIT | …</summary>
+    public string Type { get; set; } = AlertTypes.Manual;
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    /// <summary>OPEN | ACKNOWLEDGED | RESOLVED</summary>
+    public string Status { get; set; } = AlertStatuses.Open;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? AcknowledgedAt { get; set; }
+    public string? AcknowledgedByUserId { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public string Meta { get; set; } = "{}";
+
+    public Client? Client { get; set; }
+    public Site? Site { get; set; }
+    public Lane? Gate { get; set; }
+    public HardwareDevice? Device { get; set; }
+    public AppUser? AcknowledgedByUser { get; set; }
 }
 
 /// <summary>Immutable-ish audit trail for admin actions.</summary>

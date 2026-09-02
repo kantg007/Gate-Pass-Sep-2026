@@ -105,19 +105,23 @@ public static class SeedData
         {
             SiteId = site.Id,
             ClientId = client.Id,
-            Name = "Main Entry",
+            Name = "Main Entry Gate",
             Code = "GATE-IN-1",
             Direction = "ENTRY",
             DeviceApiKey = "dev_demo_lane_key_001",
+            BarrierState = BarrierStates.Open,
+            BarrierStateAt = DateTime.UtcNow.AddMinutes(-5),
         };
         var exitGate = new Lane
         {
             SiteId = site.Id,
             ClientId = client.Id,
-            Name = "Main Exit",
+            Name = "Main Exit Gate",
             Code = "GATE-OUT-1",
             Direction = "EXIT",
             DeviceApiKey = "dev_demo_lane_key_002",
+            BarrierState = BarrierStates.Closed,
+            BarrierStateAt = DateTime.UtcNow.AddMinutes(-2),
         };
         db.Lanes.AddRange(entryGate, exitGate);
 
@@ -225,6 +229,233 @@ public static class SeedData
             EntityType = "Client",
             EntityId = client.Id,
             Summary = "Demo tenant seeded with site, gates, hardware, vehicles",
+        });
+
+        // Second site + richer demo telemetry for dashboard charts
+        var site2 = new Site
+        {
+            ClientId = client.Id,
+            Name = "Tech Park Bangalore",
+            Slug = "tech-park-blr",
+            Address = "Bangalore, KA",
+            Settings = settings.ToJson(),
+        };
+        db.Sites.Add(site2);
+        var site2Entry = new Lane
+        {
+            SiteId = site2.Id,
+            ClientId = client.Id,
+            Name = "Tower A Entry",
+            Code = "TP-IN-1",
+            Direction = "ENTRY",
+            DeviceApiKey = "dev_demo_lane_key_003",
+            BarrierState = BarrierStates.Closed,
+            BarrierStateAt = DateTime.UtcNow,
+        };
+        var site2Exit = new Lane
+        {
+            SiteId = site2.Id,
+            ClientId = client.Id,
+            Name = "Tower A Exit",
+            Code = "TP-OUT-1",
+            Direction = "EXIT",
+            DeviceApiKey = "dev_demo_lane_key_004",
+            BarrierState = BarrierStates.Closed,
+            BarrierStateAt = DateTime.UtcNow,
+        };
+        db.Lanes.AddRange(site2Entry, site2Exit);
+
+        var reader = new HardwareDevice
+        {
+            ClientId = client.Id,
+            SiteId = site.Id,
+            GateId = exitGate.Id,
+            Name = "Exit RFID Reader",
+            DeviceType = "RFID_READER",
+            SerialNumber = "GF-RFID-0002",
+            DeviceApiKey = "hw_demo_reader_002",
+            ConnectionStatus = HardwareStatuses.Online,
+            LastSeenAt = DateTime.UtcNow.AddMinutes(-1),
+            FirmwareVersion = "1.0.0",
+        };
+        var offlineCam = new HardwareDevice
+        {
+            ClientId = client.Id,
+            SiteId = site2.Id,
+            GateId = site2Entry.Id,
+            Name = "ANPR Cam Tower A",
+            DeviceType = "ANPR_CAM",
+            SerialNumber = "GF-ANPR-0003",
+            DeviceApiKey = "hw_demo_anpr_003",
+            ConnectionStatus = HardwareStatuses.Offline,
+            LastSeenAt = DateTime.UtcNow.AddMinutes(-45),
+            FirmwareVersion = "0.9.1",
+        };
+        var warnRelay = new HardwareDevice
+        {
+            ClientId = client.Id,
+            SiteId = site2.Id,
+            GateId = site2Exit.Id,
+            Name = "Exit Relay",
+            DeviceType = "RELAY",
+            SerialNumber = "GF-RLY-0004",
+            DeviceApiKey = "hw_demo_relay_004",
+            ConnectionStatus = HardwareStatuses.Degraded,
+            LastSeenAt = DateTime.UtcNow.AddMinutes(-3),
+            FirmwareVersion = "1.0.0",
+        };
+        db.HardwareDevices.AddRange(reader, offlineCam, warnRelay);
+
+        db.Alerts.AddRange(
+            new Alert
+            {
+                ClientId = client.Id,
+                SiteId = site2.Id,
+                GateId = site2Entry.Id,
+                DeviceId = offlineCam.Id,
+                Severity = AlertSeverities.Critical,
+                Type = AlertTypes.DeviceOffline,
+                Title = "Device offline",
+                Message = "ANPR Cam Tower A has not sent a heartbeat.",
+            },
+            new Alert
+            {
+                ClientId = client.Id,
+                SiteId = site.Id,
+                Severity = AlertSeverities.Warning,
+                Type = AlertTypes.AccessDenied,
+                Title = "Access denied",
+                Message = "Unknown credential attempted at Main Entry Gate.",
+            },
+            new Alert
+            {
+                ClientId = client.Id,
+                SiteId = site2.Id,
+                DeviceId = warnRelay.Id,
+                Severity = AlertSeverities.Warning,
+                Type = AlertTypes.Manual,
+                Title = "Device degraded",
+                Message = "Exit Relay reporting intermittent signal.",
+            });
+
+        // Synthetic 24h movement + recent activity
+        var rnd = new Random(42);
+        var plates = new[] { "KA01AB1234", "MH12AB1234", "MH14CD5678", "KA05XY9988", "DL01CA4455" };
+        for (var h = 23; h >= 0; h--)
+        {
+            var hour = DateTime.UtcNow.AddHours(-h);
+            hour = new DateTime(hour.Year, hour.Month, hour.Day, hour.Hour, 0, 0, DateTimeKind.Utc);
+            var entries = 8 + rnd.Next(0, 25);
+            var exits = 6 + rnd.Next(0, 20);
+            for (var i = 0; i < entries; i++)
+            {
+                var gate = rnd.Next(0, 2) == 0 ? entryGate : site2Entry;
+                db.AccessEvents.Add(new AccessEvent
+                {
+                    SiteId = gate.SiteId,
+                    ClientId = client.Id,
+                    LaneId = gate.Id,
+                    Decision = "ALLOW",
+                    EventType = AccessEventTypes.Pass,
+                    OpenMethod = OpenMethods.Auto,
+                    Reason = "CREDENTIAL_OK",
+                    PlateNumber = plates[rnd.Next(plates.Length)],
+                    CreatedAt = hour.AddMinutes(rnd.Next(0, 59)),
+                });
+            }
+            for (var i = 0; i < exits; i++)
+            {
+                var gate = rnd.Next(0, 2) == 0 ? exitGate : site2Exit;
+                db.AccessEvents.Add(new AccessEvent
+                {
+                    SiteId = gate.SiteId,
+                    ClientId = client.Id,
+                    LaneId = gate.Id,
+                    Decision = "ALLOW",
+                    EventType = AccessEventTypes.Pass,
+                    OpenMethod = OpenMethods.Auto,
+                    Reason = "CREDENTIAL_OK",
+                    PlateNumber = plates[rnd.Next(plates.Length)],
+                    CreatedAt = hour.AddMinutes(rnd.Next(0, 59)),
+                });
+            }
+        }
+
+        db.AccessEvents.AddRange(
+            new AccessEvent
+            {
+                SiteId = site.Id,
+                ClientId = client.Id,
+                LaneId = entryGate.Id,
+                Decision = "DENY",
+                EventType = AccessEventTypes.Fail,
+                OpenMethod = OpenMethods.Auto,
+                Reason = "UNKNOWN_CREDENTIAL",
+                PlateNumber = "KA99ZZ0001",
+                CreatedAt = DateTime.UtcNow.AddMinutes(-4),
+            },
+            new AccessEvent
+            {
+                SiteId = site.Id,
+                ClientId = client.Id,
+                LaneId = entryGate.Id,
+                Decision = "ALLOW",
+                EventType = AccessEventTypes.ManualOpen,
+                OpenMethod = OpenMethods.Guard,
+                Reason = "VISITOR",
+                ActorUserId = guard.Id,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-2),
+            },
+            new AccessEvent
+            {
+                SiteId = site2.Id,
+                ClientId = client.Id,
+                LaneId = site2Entry.Id,
+                Decision = "ALLOW",
+                EventType = AccessEventTypes.Pass,
+                OpenMethod = OpenMethods.Auto,
+                Reason = "CREDENTIAL_OK",
+                PlateNumber = "KA01AB1234",
+                CreatedAt = DateTime.UtcNow.AddMinutes(-1),
+            });
+
+        // Extra demo client for platform "companies" KPI
+        var client2 = new Client
+        {
+            Name = "Sunrise Mall Ops",
+            ContactEmail = "ops@sunrisemall.local",
+            Phone = "8888888888",
+            Status = "Active",
+        };
+        db.Clients.Add(client2);
+        db.Subscriptions.Add(new Subscription
+        {
+            ClientId = client2.Id,
+            PlanId = starter.Id,
+            Status = "Active",
+            StartsAt = DateTime.UtcNow.AddDays(-30),
+            EndsAt = DateTime.UtcNow.AddMonths(2),
+        });
+        await EnsureClientDefaultRolesAsync(db, client2.Id);
+        var mallSite = new Site
+        {
+            ClientId = client2.Id,
+            Name = "Sunrise Mall Basement",
+            Slug = "sunrise-mall",
+            Address = "Hyderabad, TS",
+            Settings = settings.ToJson(),
+        };
+        db.Sites.Add(mallSite);
+        db.Lanes.Add(new Lane
+        {
+            SiteId = mallSite.Id,
+            ClientId = client2.Id,
+            Name = "Basement Entry",
+            Code = "SM-IN-1",
+            Direction = "ENTRY",
+            DeviceApiKey = "dev_demo_lane_key_005",
+            BarrierState = BarrierStates.Open,
+            BarrierStateAt = DateTime.UtcNow,
         });
 
         await db.SaveChangesAsync();

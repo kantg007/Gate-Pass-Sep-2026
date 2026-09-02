@@ -65,7 +65,6 @@ export function useAuth() {
 }
 
 export function homeForRole(role: string) {
-  if (role === "PlatformAdmin") return "/admin";
-  if (role === "Guard") return "/guard";
-  return "/app";
+  if (role === "Guard") return "/dashboard";
+  return "/dashboard";
 }

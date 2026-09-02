@@ -31,6 +31,7 @@ public class GateFlowDbContext : DbContext
     public DbSet<GateCommand> GateCommands => Set<GateCommand>();
     public DbSet<ManualOverride> ManualOverrides => Set<ManualOverride>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Alert> Alerts => Set<Alert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -199,6 +200,18 @@ public class GateFlowDbContext : DbContext
             e.HasOne(x => x.Client).WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.ActorUser).WithMany().HasForeignKey(x => x.ActorUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Alert>(e =>
+        {
+            e.HasIndex(x => new { x.ClientId, x.Status, x.CreatedAt });
+            e.HasIndex(x => new { x.SiteId, x.Status });
+            e.HasIndex(x => x.Type);
+            e.HasOne(x => x.Client).WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Gate).WithMany().HasForeignKey(x => x.GateId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.AcknowledgedByUser).WithMany().HasForeignKey(x => x.AcknowledgedByUserId).OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

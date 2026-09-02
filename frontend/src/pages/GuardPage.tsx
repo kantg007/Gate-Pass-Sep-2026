@@ -33,8 +33,8 @@ export function GuardPage() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--display)] text-3xl font-bold">Guard desk</h1>
-        <p className="mt-1 text-[var(--muted)]">
+        <h1 className="text-2xl font-bold tracking-tight">Guard desk</h1>
+        <p className="mt-1 text-sm text-[var(--muted)]">
           Paste visitor QR payload (or scan later with camera). Boom opens only on ALLOW.
         </p>
       </div>

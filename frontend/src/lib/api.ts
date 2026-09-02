@@ -66,6 +66,15 @@ async function request<T>(path: string, init?: RequestInit & { auth?: boolean })
   return data as T;
 }
 
+function qs(params: Record<string, string | number | undefined | null>) {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
+  }
+  const s = sp.toString();
+  return s ? `?${s}` : "";
+}
+
 export type Site = {
   id: string;
   clientId?: string;
@@ -123,6 +132,148 @@ export type ClientRow = {
   createdAt: string;
   siteCount: number;
   userCount: number;
+};
+
+export type DashboardOverview = {
+  siteId: string | null;
+  clientId: string | null;
+  kpis: {
+    key: string;
+    label: string;
+    value: number;
+    changePct: number | null;
+    compareLabel: string;
+  }[];
+  vehicleMovement: {
+    hourLabel: string;
+    hourStart: string;
+    entered: number;
+    exited: number;
+    inside: number;
+  }[];
+  gateStatus: { open: number; closed: number; offline: number; total: number };
+  liveGates: {
+    id: string;
+    name: string;
+    code: string;
+    siteId: string;
+    siteName: string;
+    direction: string;
+    status: string;
+    barrierState: string;
+    deviceOnline: boolean;
+    lastSeenAt: string | null;
+  }[];
+  recentActivity: {
+    id: string;
+    kind: string;
+    title: string;
+    detail: string | null;
+    plateNumber: string | null;
+    siteName: string | null;
+    gateName: string | null;
+    decision: string;
+    eventType: string;
+    createdAt: string;
+  }[];
+  topSites: {
+    siteId: string;
+    siteName: string;
+    entries: number;
+    changePct: number | null;
+  }[];
+  deviceHealth: {
+    total: number;
+    healthy: number;
+    warning: number;
+    offline: number;
+    healthyPct: number;
+  };
+  openAlerts: number;
+};
+
+export type GateRow = {
+  id: string;
+  siteId: string;
+  siteName: string;
+  clientId: string | null;
+  name: string;
+  code: string;
+  direction: string;
+  barrierState: string;
+  status: string;
+  isActive: boolean;
+  deviceOnline: boolean;
+  lastSeenAt: string | null;
+  createdAt: string;
+};
+
+export type HardwareRow = {
+  id: string;
+  clientId: string;
+  siteId: string;
+  siteName: string;
+  gateId: string | null;
+  gateName: string | null;
+  name: string;
+  deviceType: string;
+  serialNumber: string | null;
+  deviceApiKey: string;
+  firmwareVersion: string | null;
+  connectionStatus: string;
+  lastSeenAt: string | null;
+  isActive: boolean;
+};
+
+export type AlertRow = {
+  id: string;
+  clientId: string | null;
+  siteId: string | null;
+  siteName: string | null;
+  gateId: string | null;
+  deviceId: string | null;
+  severity: string;
+  type: string;
+  title: string;
+  message: string;
+  status: string;
+  createdAt: string;
+  acknowledgedAt: string | null;
+  resolvedAt: string | null;
+};
+
+export type UserRow = {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  clientId: string | null;
+  siteId: string | null;
+  siteName: string | null;
+  phone: string | null;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+};
+
+export type RoleRow = {
+  id: string;
+  clientId: string | null;
+  name: string;
+  code: string;
+  description: string | null;
+  isSystem: boolean;
+  isActive: boolean;
+  permissionCount: number;
+  userCount: number;
+};
+
+export type SearchHit = {
+  type: string;
+  id: string;
+  title: string;
+  subtitle: string | null;
+  href: string | null;
 };
 
 export const api = {
@@ -192,6 +343,71 @@ export const api = {
       auth: false,
       headers: deviceKey ? { "X-Device-Key": deviceKey } : undefined,
     }),
+
+  dashboardOverview: (params?: { siteId?: string; clientId?: string }) =>
+    request<DashboardOverview>(`/v1/dashboard/overview${qs(params ?? {})}`),
+
+  listGates: (params?: { siteId?: string }) =>
+    request<GateRow[]>(`/v1/gates${qs(params ?? {})}`),
+  createGate: (body: { siteId: string; name: string; code: string; direction: string }) =>
+    request<GateRow>("/v1/gates", { method: "POST", body: JSON.stringify(body) }),
+  gateCommand: (
+    gateId: string,
+    body: { command: string; reasonCode?: string; reasonNote?: string; method?: string },
+  ) =>
+    request(`/v1/gates/${gateId}/commands`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  listHardware: (params?: { siteId?: string }) =>
+    request<HardwareRow[]>(`/v1/hardware${qs(params ?? {})}`),
+  createHardware: (body: {
+    siteId: string;
+    gateId?: string;
+    name: string;
+    deviceType: string;
+    serialNumber?: string;
+  }) => request<HardwareRow>("/v1/hardware", { method: "POST", body: JSON.stringify(body) }),
+
+  listAlerts: (params?: { siteId?: string; status?: string }) =>
+    request<{ items: AlertRow[]; openCount: number }>(`/v1/alerts${qs(params ?? {})}`),
+  updateAlert: (alertId: string, status: string) =>
+    request<AlertRow>(`/v1/alerts/${alertId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+
+  listUsers: (params?: { siteId?: string }) =>
+    request<UserRow[]>(`/v1/users${qs(params ?? {})}`),
+  createUser: (body: {
+    email: string;
+    fullName: string;
+    password: string;
+    role: string;
+    siteId?: string;
+    phone?: string;
+  }) => request<UserRow>("/v1/users", { method: "POST", body: JSON.stringify(body) }),
+  updateUser: (
+    userId: string,
+    body: { fullName?: string; role?: string; siteId?: string; phone?: string; isActive?: boolean },
+  ) =>
+    request<UserRow>(`/v1/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  listRoles: () => request<RoleRow[]>("/v1/roles"),
+
+  search: (q: string) => request<{ query: string; hits: SearchHit[] }>(`/v1/search${qs({ q })}`),
+
+  accessSummary: (params?: { siteId?: string; from?: string; to?: string }) =>
+    request<{ from: string; to: string; rows: { siteId: string; gateId: string | null; eventType: string; count: number }[] }>(
+      `/v1/reports/access-summary${qs(params ?? {})}`,
+    ),
+  topSites: () =>
+    request<{ from: string; to: string; sites: { siteId: string; siteName: string; entries: number; exits: number; changePct: number | null }[] }>(
+      "/v1/reports/top-sites",
+    ),
 };
 
 export { API_BASE };
